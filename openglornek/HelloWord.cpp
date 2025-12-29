@@ -1,140 +1,189 @@
-#include <GL/glut.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <time.h>
-#include <stdbool.h>
+#include <GL/glut.h>     // OpenGL + GLUT: pencere, Ã§izim, klavye, timer
+#include <stdlib.h>      // rand(), srand(), exit() fonksiyonlarÄ±
+#include <stdio.h>       // printf() ile konsola yazÄ± yazmak iÃ§in
+#include <time.h>        // time() fonksiyonu (rastgelelik iÃ§in)
+#include <stdbool.h>     // bool, true, false veri tipleri
 
-// Oyun alaný boyutlarý
-#define GRID_SIZE 30 // 30x30 grid (büyüttük)
-#define CELL_SIZE 20 // Her kare 20 piksel
+// -------------------- OYUN ALANI SABÄ°TLERÄ° --------------------
+
+#define GRID_SIZE 30     // Oyun alanÄ± 30x30 kareden oluÅŸur
+#define CELL_SIZE 20     // Her karenin ekrandaki boyutu 20 piksel
 #define WINDOW_SIZE (GRID_SIZE * CELL_SIZE) // Pencere boyutu: 600x600
 
-// Yýlan ve yem için yapýlar
+// -------------------- YAPI TANIMI --------------------
+
+// YÄ±lan ve yemin konumunu tutmak iÃ§in 2 boyutlu nokta yapÄ±sÄ±
 typedef struct {
-    int x, y; // Koordinatlar
+    int x;              // X ekseni (saÄŸ-sol)
+    int y;              // Y ekseni (yukarÄ±-aÅŸaÄŸÄ±)
 } Point;
 
-Point snake[100]; // Yýlanýn gövdesi (maks 100 segment)
-int snakeLength = 3; // Baþlangýç uzunluðu
-Point food; // Yem konumu
-int direction = 1; // 0: yukarý, 1: sað, 2: aþaðý, 3: sol
-bool gameOver = false;
-int score = 0;
+// -------------------- GLOBAL DEÄžÄ°ÅžKENLER --------------------
 
-// Baþlangýç ayarlarý
+Point snake[100];       // YÄ±lanÄ±n gÃ¶vdesi (maksimum 100 parÃ§a)
+int snakeLength = 3;    // YÄ±lanÄ±n baÅŸlangÄ±Ã§ uzunluÄŸu
+Point food;             // Yem nesnesinin konumu
+
+int direction = 1;      // YÄ±lanÄ±n yÃ¶nÃ¼: 0=yukarÄ±, 1=saÄŸ, 2=aÅŸaÄŸÄ±, 3=sol
+bool gameOver = false;  // Oyun bitti mi kontrolÃ¼
+int score = 0;          // Oyuncunun skoru
+int speed = 100;      // YÄ±lanÄ±n baÅŸlangÄ±Ã§ hÄ±zÄ± (ms)
+int minSpeed = 40;    // Daha fazla hÄ±zlanmamasÄ± iÃ§in alt sÄ±nÄ±r
+
+
+// -------------------- BAÅžLANGIÃ‡ AYARLARI --------------------
+
 void init(void) {
-    glClearColor(0.0, 0.0, 0.0, 0.0); // Arka plan siyah
-    glMatrixMode(GL_PROJECTION);
-    gluOrtho2D(0, WINDOW_SIZE, 0, WINDOW_SIZE); // 2D grid: 600x600
-    srand(time(NULL)); // Rastgele sayý için seed
-    // Yýlanýn baþlangýç konumu (gridin ortasýna yakýn)
-    snake[0].x = 15; snake[0].y = 15; // Ortada baþla
-    snake[1].x = 14; snake[1].y = 15;
-    snake[2].x = 13; snake[2].y = 15;
-    // Ýlk yemi yerleþtir
+
+    glClearColor(0.0, 0.0, 0.0, 0.0);  // Arka plan rengini siyah yap
+
+    glMatrixMode(GL_PROJECTION);       // 2D/3D gÃ¶rÃ¼ntÃ¼ ayarlarÄ±
+    gluOrtho2D(0, WINDOW_SIZE, 0, WINDOW_SIZE); // 2D koordinat sistemi (600x600)
+
+    srand(time(NULL));                 // Rastgele sayÄ± Ã¼retimi iÃ§in seed
+
+    // YÄ±lanÄ±n baÅŸlangÄ±Ã§ konumu (ekranÄ±n ortasÄ±)
+    snake[0].x = 15; snake[0].y = 15;  // YÄ±lanÄ±n baÅŸÄ±
+    snake[1].x = 14; snake[1].y = 15;  // GÃ¶vde
+    snake[2].x = 13; snake[2].y = 15;  // Kuyruk
+
+    // Ä°lk yem rastgele bir konuma yerleÅŸtirilir
     food.x = rand() % GRID_SIZE;
     food.y = rand() % GRID_SIZE;
 }
 
-// Kare çizme fonksiyonu
+// -------------------- KARE Ã‡Ä°ZME FONKSÄ°YONU --------------------
+
 void drawSquare(int x, int y, float r, float g, float b) {
-    glColor3f(r, g, b);
-    glBegin(GL_QUADS);
-    glVertex2i(x * CELL_SIZE, y * CELL_SIZE);
-    glVertex2i(x * CELL_SIZE + CELL_SIZE, y * CELL_SIZE);
-    glVertex2i(x * CELL_SIZE + CELL_SIZE, y * CELL_SIZE + CELL_SIZE);
-    glVertex2i(x * CELL_SIZE, y * CELL_SIZE + CELL_SIZE);
-    glEnd();
+
+    glColor3f(r, g, b);                // Ã‡izim rengi ayarlanÄ±r (RGB)
+
+    glBegin(GL_QUADS);                 // DÃ¶rt kÃ¶ÅŸeli ÅŸekil Ã§izimine baÅŸlanÄ±r
+
+    glVertex2i(x * CELL_SIZE, y * CELL_SIZE);                         // Sol-alt kÃ¶ÅŸe
+    glVertex2i(x * CELL_SIZE + CELL_SIZE, y * CELL_SIZE);             // SaÄŸ-alt kÃ¶ÅŸe
+    glVertex2i(x * CELL_SIZE + CELL_SIZE, y * CELL_SIZE + CELL_SIZE); // SaÄŸ-Ã¼st kÃ¶ÅŸe
+    glVertex2i(x * CELL_SIZE, y * CELL_SIZE + CELL_SIZE);             // Sol-Ã¼st kÃ¶ÅŸe
+
+    glEnd();                           // Kare Ã§izimi biter
 }
 
-// Çizim fonksiyonu
-void display(void) {
-    glClear(GL_COLOR_BUFFER_BIT);
+// -------------------- EKRAN Ã‡Ä°ZÄ°MÄ° --------------------
 
-    // Yýlaný çiz (yeþil)
+void display(void) {
+
+    glClear(GL_COLOR_BUFFER_BIT);      // Ã–nce ekran temizlenir
+
+    // YÄ±lan yeÅŸil renkte Ã§izilir
     for (int i = 0; i < snakeLength; i++) {
         drawSquare(snake[i].x, snake[i].y, 0.0, 1.0, 0.0);
     }
 
-    // Yemi çiz (kýrmýzý)
+    // Yem kÄ±rmÄ±zÄ± renkte Ã§izilir
     drawSquare(food.x, food.y, 1.0, 0.0, 0.0);
 
-    // Oyun bittiyse mesaj göster
+    // Oyun bittiyse konsola mesaj yaz ve Ã§Ä±k
     if (gameOver) {
-        printf("Oyun Bitti! Skor: %d\n", score);
-        exit(0); // Konsolda mesaj gösterip çýk
+        printf("Oyun Bitti! Skor: %d\n", score); // Skoru yazdÄ±r
+        exit(0);                                 // Pencereyi kapat
     }
 
-    glutSwapBuffers(); // Çift tamponlama için
+    glutSwapBuffers();                // Ã‡ift tamponlama (titreme Ã¶nlenir)
 }
 
-// Yýlaný hareket ettirme
+// -------------------- YILAN HAREKETÄ° --------------------
+
 void moveSnake() {
-    // Yýlanýn gövdesini kaydýr
+
+    // YÄ±lanÄ±n gÃ¶vdesi arkadan Ã¶ne doÄŸru kaydÄ±rÄ±lÄ±r
     for (int i = snakeLength - 1; i > 0; i--) {
         snake[i] = snake[i - 1];
     }
 
-    // Baþýn yeni pozisyonu
+    // YÃ¶n bilgisine gÃ¶re yÄ±lanÄ±n baÅŸÄ± hareket eder
     switch (direction) {
-    case 0: snake[0].y++; break; // Yukarý
-    case 1: snake[0].x++; break; // Sað
-    case 2: snake[0].y--; break; // Aþaðý
-    case 3: snake[0].x--; break; // Sol
+    case 0: snake[0].y++; break;      // YukarÄ± hareket
+    case 1: snake[0].x++; break;      // SaÄŸa hareket
+    case 2: snake[0].y--; break;      // AÅŸaÄŸÄ± hareket
+    case 3: snake[0].x--; break;      // Sola hareket
     }
 
-    // Çarpýþma kontrolü: Duvarlar
-    if (snake[0].x < 0 || snake[0].x >= GRID_SIZE || snake[0].y < 0 || snake[0].y >= GRID_SIZE) {
-        gameOver = true;
+    // Duvara Ã§arpma kontrolÃ¼
+    if (snake[0].x < 0 || snake[0].x >= GRID_SIZE ||
+        snake[0].y < 0 || snake[0].y >= GRID_SIZE) {
+        gameOver = true;              // Duvara Ã§arptÄ±ysa oyun biter
     }
 
-    // Çarpýþma kontrolü: Kendi kuyruðu
+    // YÄ±lanÄ±n kendi gÃ¶vdesine Ã§arpma kontrolÃ¼
     for (int i = 1; i < snakeLength; i++) {
-        if (snake[0].x == snake[i].x && snake[0].y == snake[i].y) {
-            gameOver = true;
+        if (snake[0].x == snake[i].x &&
+            snake[0].y == snake[i].y) {
+            gameOver = true;          // Kendine Ã§arptÄ±ysa oyun biter
         }
     }
 
-    // Yem yeme kontrolü
+    // Yem yeme kontrolÃ¼
     if (snake[0].x == food.x && snake[0].y == food.y) {
-        snakeLength++;
-        score += 10;
-        // Yeni yem konumu
+
+        snakeLength++;                // YÄ±lan uzar
+        score += 10;                  // Skor artar
+
+        if (score >= 50 && speed > minSpeed) {
+            speed -= 10;        // HÄ±zÄ± artÄ±r (timer sÃ¼resi dÃ¼ÅŸer)
+        }
+        // Yeni yem rastgele bir konuma yerleÅŸtirilir
         food.x = rand() % GRID_SIZE;
         food.y = rand() % GRID_SIZE;
     }
 }
 
-// Zamanlayýcý fonksiyonu (oyun döngüsü)
+// -------------------- TIMER (OYUN DÃ–NGÃœSÃœ) --------------------
+
 void timer(int value) {
-    if (!gameOver) {
-        moveSnake();
-        glutPostRedisplay(); // Ekraný yenile
-        glutTimerFunc(100, timer, 0); // 100ms'de bir güncelle
+
+    if (!gameOver) {                  // Oyun devam ediyorsa
+        moveSnake();                  // YÄ±lanÄ± hareket ettir
+        glutPostRedisplay();          // EkranÄ± yenile
+        glutTimerFunc(100, timer, 0); // 100 ms sonra tekrar Ã§aÄŸÄ±r
     }
 }
 
-// Klavye giriþi
+// -------------------- KLAVYE KONTROLÃœ --------------------
+
 void keyboard(int key, int x, int y) {
+
     switch (key) {
-    case GLUT_KEY_UP: if (direction != 2) direction = 0; break; // Yukarý, aþaðý gitmiyorsa
-    case GLUT_KEY_RIGHT: if (direction != 3) direction = 1; break; // Sað, sol gitmiyorsa
-    case GLUT_KEY_DOWN: if (direction != 0) direction = 2; break; // Aþaðý, yukarý gitmiyorsa
-    case GLUT_KEY_LEFT: if (direction != 1) direction = 3; break; // Sol, sað gitmiyorsa
+    case GLUT_KEY_UP:
+        if (direction != 2) direction = 0; // YukarÄ± (ters yÃ¶n engellenir)
+        break;
+    case GLUT_KEY_RIGHT:
+        if (direction != 3) direction = 1; // SaÄŸ
+        break;
+    case GLUT_KEY_DOWN:
+        if (direction != 0) direction = 2; // AÅŸaÄŸÄ±
+        break;
+    case GLUT_KEY_LEFT:
+        if (direction != 1) direction = 3; // Sol
+        break;
     }
 }
 
-// Ana fonksiyon
+// -------------------- ANA FONKSÄ°YON --------------------
+
 int main(int argc, char** argv) {
-    glutInit(&argc, argv);
-    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB); // Çift tamponlama
-    glutInitWindowSize(WINDOW_SIZE, WINDOW_SIZE); // 600x600 pencere
-    glutInitWindowPosition(100, 100);
-    glutCreateWindow("Snake Oyunu");
-    init();
-    glutDisplayFunc(display);
-    glutSpecialFunc(keyboard); // Yön tuþlarý için
-    glutTimerFunc(0, timer, 0); // Oyun döngüsü
-    glutMainLoop();
-    return 0;
+
+    glutInit(&argc, argv);                                // GLUT baÅŸlatÄ±lÄ±r
+    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);          // Ã‡ift tamponlama
+    glutInitWindowSize(WINDOW_SIZE, WINDOW_SIZE);         // 600x600 pencere
+    glutInitWindowPosition(100, 100);                     // Pencere konumu
+    glutCreateWindow("Snake Oyunu");                      // Pencere baÅŸlÄ±ÄŸÄ±
+
+    init();                                               // BaÅŸlangÄ±Ã§ ayarlarÄ±
+
+    glutDisplayFunc(display);                             // Ã‡izim fonksiyonu
+    glutSpecialFunc(keyboard);                            // Ok tuÅŸlarÄ±
+    glutTimerFunc(0, timer, 0);                           // Oyun dÃ¶ngÃ¼sÃ¼
+
+    glutMainLoop();                                       // Sonsuz dÃ¶ngÃ¼
+    return 0;                                             // Program sonu
 }
